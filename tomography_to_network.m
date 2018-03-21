@@ -2,6 +2,7 @@
 %This program imports 3d sliced images and processes them into labeled
 %particles and individualized contacts
 %Created by David Chen 5/17/17
+%email: ender314@gmail.com
 %------------------------------------------------------------------------
 
 %Parameters:
@@ -9,11 +10,11 @@
 boxheight = 0.105;
 
 %ahi is highest image #, alo is lowest image #
-ahi = 500;
-alo = 15;
+ahi = 720;
+alo = 1;
 numimages = ahi-alo+1; %number of images
 
-filename = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/scan_1/slice_50.jpg');
+filename = sprintf('/filepath/scan_1/slice_50.jpg');%test image to establish image size and voxel dimensions
 I = imread(filename);
 %resample images down to improve performance and rescale for correct
 %isotropic voxel dimensions (zcal = zdim calibration factor for this set)
@@ -21,14 +22,14 @@ zcal = numimages/(size(I,2)/24.3*18*numimages/720);%720 is total number of image
 I = imresize(I,[round(zcal*size(I,1)) round(zcal*size(I,2))]);
 
 %looping to process all the scans, s = scan #, a = image #
-for s=2:6
+for s=1:5
     
 II=zeros(size(I,1),size(I,2),numimages); %preallocating an array to store the 3d images
 
     for a=alo:ahi
 
     %import images from files
-    filename = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/scan_%d/slice_%d.jpg',s,a);
+    filename = sprintf('/filepath/scan_%d/slice_%d.jpg',s,a);
     I = imread(filename);
     I = imresize(I,[round(zcal*size(I,1)) round(zcal*size(I,2))]);
 
@@ -126,10 +127,12 @@ particles(II==0)=0;
 %extract contacts
 contacts = II&W==0;
 
+%extract particle properties
 cstats = regionprops(contacts,'Area','Centroid');
 carea = [cstats.Area];
 ccenter = [cstats.Centroid];
 
+%convert particles from solid spheres to hollow surfaces (reduces data)
 psurfaces = bwperim(particles);
 psurfaces = bwlabeln(psurfaces);
 
@@ -140,22 +143,6 @@ pscenter = [psstats.Centroid];
 
 psurf = psurfaces;
 toc
-
-%finds and deletes particles that are too small
-%takes a long time and is usually not a necessary step
-%(small particles are removed during smoothing also){
-%
-% smallareas = find(parea<100000);
-% for i=1:size(smallareas,2)
-%     psurf(psurfaces==smallareas(1,i))=0;
-% end
-%}
-
-% bigareas = find(parea>2*mean(parea));
-% %find particles that are twice the size of the mean (change if bidisperse)
-% for i=1:size(bigareas,2)
-%     psurf(psurfaces==bigareas(1,i))=0;
-% end
 
 %initialize arrays to store particle information
 numparts = max(max(max(psurf())));
@@ -208,7 +195,7 @@ for i = 1:numparts
     [phiq,thetaq]=meshgrid(p,t);
     vq = griddata(pphi,ptheta,prho,phiq,thetaq,'cubic')+1.0/zcal;%plus 1.0 to account for watershed
     vq(isnan(vq))=nanmedian(nanmedian(vq));
-    vq = smooth2a(vq,10,10);
+    vq = smooth2a(vq,10,10);%requires smooth2a.m (by Greg Reeves)
     mesh(phiq,thetaq,vq);
     
     %removes the periodic images
@@ -337,31 +324,32 @@ parfor id = 1:numparts
     
 end
 
+%Write particle and contact files for analysis
 fprintf('Storing particle and contact files for scan %d\n',s);
 tic
-folder = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/particlefiles/scan%d',s);
+folder = sprintf('/filepath/particlefiles/scan%d',s);
 if ~exist(folder, 'dir')
   mkdir(folder);
 end
-folder = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/contactfiles/scan%d',s);
+folder = sprintf('/filepath/contactfiles/scan%d',s);
 if ~exist(folder, 'dir')
   mkdir(folder);
 end
 
-csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/particlefiles/scan%d/centers%d.csv',s,s),partcents);
+csvwrite(sprintf('/filepath/particlefiles/scan%d/centers%d.csv',s,s),partcents);
 
 for i=1:numparts
-    csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/particlefiles/scan%d/particle%d.csv',s,i),partlocs(:,:,i));
+    csvwrite(sprintf('/filepath/particlefiles/scan%d/particle%d.csv',s,i),partlocs(:,:,i));
 end
-file = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/contactfiles/scan%d/contactphi%d.mat',s,s);
+file = sprintf('/filepath/contactfiles/scan%d/contactphi%d.mat',s,s);
 save(file,'contactphi');
-file = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/contactfiles/scan%d/contacttheta%d.mat',s,s);
+file = sprintf('/filepath/contactfiles/scan%d/contacttheta%d.mat',s,s);
 save(file,'contacttheta');
-file = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/contactfiles/scan%d/contactrad%d.mat',s,s);
+file = sprintf('/filepath/contactfiles/scan%d/contactrad%d.mat',s,s);
 save(file,'contactrad');
 toc
 
-file = sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/contactfiles/scan%d/partdists%d.mat',s,s);
+file = sprintf('/filepath/contactfiles/scan%d/partdists%d.mat',s,s);
 save(file,'partdists');
 toc
 
@@ -399,82 +387,9 @@ for id1 = 1:numparts
             [xm,ym,zm] = sph2cart(phi,theta,sum(rad));
             d = partdists(id1,id2);
             
-            rad = rad-0.5/zcal;%subtract 0.5 to account for pixel adding
-            
             avgrad(id1,id2) = sum(rad)/2;
 
             delta = sum(rad)-d;
-            
-%             %delta = delta - 1/zcal;
-%             
-%             if delta < 0
-%                 delta = -0.001/delta;%this recaptures the contacts that we would lose by subtracting 0.5 from pixel adding
-%             end
-            
-            if rad(1) < 140 && rad(2) < 140 && delta > 0 && rad(1) > 80 && rad(2) > 80%radii cannot be too large
-            
-                avgdelta(id1,id2)=delta;
-                [x1,y1,z1] = sph2cart(phi,theta,rad(1,1)-delta/2);%contact center
-                center = mean([x1 y1 z1]);%contact center
-                centers{id1,id2} = center;
-                branch = center./norm(center);
-                branches{dex,1} = branch;
-                dex = dex+1;
-                
-
-                xyzdist = dist([x1,y1,z1]');
-%                 diameter = 0;
-%                 for idist = 1:size(xyzdist,1)
-%                     diameter = diameter + max(xyzdist(:,idist));
-%                 end
-%                 diameter = diameter/size(xyzdist,1);
-
-                radcurve = 1/(1/rad(1)+1/rad(2));
-                forces(id1,id2) = 4/3*1/(1.5/33750)*radcurve^0.5*delta^1.5*pixeltometer^2;
-
-%                 contactarea(id1,id2) = pi*(diameter/2)^2;
-
-                if forces(id1,id2) > 0 %&& forces(id1,id2) < 0.01
-%                     fabric = fabric + branch'*branch;
-%                     stress = stress + (branch'*branch).*forces(id1,id2)./(boxheight*0.18*0.243);%boxvolume*conversion factor
-                    Z = Z+1;
-                end
-            end
-        end
-        if forces(id1,id2) > 0 %&& forces(id1,id2) < 0.01 %removing erroneous forces that are to low and too high (bad particles)
-            totalforce(id1) = totalforce(id1)+forces(id1,id2);
-        end
-    end
-    if Z~=0
-        avgforce(id1) = totalforce(id1)/Z;
-    end
-    avgZ(id1) = Z;
-end
-
-numparts2 = numparts - size(find(avgforce>5*mean(avgforce)),1);
-
-for id1 = 1:numparts
-    Z = 0;
-    for id2 = 1:numparts
-        if ~isempty(contactphi{id1,id2})
-            
-            phi = contactphi{id1,id2};
-            theta = contacttheta{id1,id2};
-            rad = contactrad{id1,id2};
-            [xm,ym,zm] = sph2cart(phi,theta,sum(rad));
-            d = partdists(id1,id2);
-            
-            %rad = rad-0.5/zcal;%subtract 0.5 to account for pixel adding
-            
-            avgrad(id1,id2) = sum(rad)/2;
-
-            delta = sum(rad)-d;
-            
-            %delta = delta - 1/zcal/2;
-            
-%             if delta < 0
-%                 delta = -0.001/delta;%resolution limit is ~0.5mm
-%             end
             
             if rad(1) < 160 && rad(2) < 160 && delta > 0 && rad(1) > 80 && rad(2) > 80%radii cannot be too large
             
@@ -486,20 +401,14 @@ for id1 = 1:numparts
                 branches{dex,1} = branch;
                 dex = dex+1;
                 
-
                 xyzdist = dist([x1,y1,z1]');
-%                 diameter = 0;
-%                 for idist = 1:size(xyzdist,1)
-%                     diameter = diameter + max(xyzdist(:,idist));
-%                 end
-%                 diameter = diameter/size(xyzdist,1);
 
+                %calculate contact force from Hertzian contact mechanics
                 radcurve = 1/(1/rad(1)+1/rad(2));
                 forces(id1,id2) = 4/3*1/(1.5/33750)*radcurve^0.5*delta^1.5*pixeltometer^2;
 
-%                 contactarea(id1,id2) = pi*(diameter/2)^2;
-
-                if forces(id1,id2) > 0 && forces(id1,id2) < 0.075
+                %get fabric and stress tensors
+                if forces(id1,id2) > 0 && forces(id1,id2) < 0.075 %force thresholds - adjust for your experiment
                     fabric = fabric + branch'*branch;
                     stress = stress + (branch'*branch).*forces(id1,id2)./(boxheight*0.18*0.243);%boxvolume*conversion factor
                     Z = Z+1;
@@ -518,9 +427,9 @@ end
 toc
 avgdelta(avgdelta==0) = NaN;
 
-csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/fabric/fabric%d.csv',s),fabric);
-csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/stress/stress%d.csv',s),stress);
-csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/forces/forces%d.csv',s),forces);
-csvwrite(sprintf('/var/phy/project/ltb/dzc/2_19_densitymatched_gel_jpg/numparts/numparts%d.csv',s),numparts2);
+csvwrite(sprintf('/filepath/fabric/fabric%d.csv',s),fabric);
+csvwrite(sprintf('/filepath/stress/stress%d.csv',s),stress);
+csvwrite(sprintf('/filepath/forces/forces%d.csv',s),forces);
+csvwrite(sprintf('/filepath/numparts/numparts%d.csv',s),numparts2);
 
 end
