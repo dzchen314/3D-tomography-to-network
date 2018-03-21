@@ -33,6 +33,7 @@ II=zeros(size(I,1),size(I,2),numimages); %preallocating an array to store the 3d
     I = imread(filename);
     I = imresize(I,[round(zcal*size(I,1)) round(zcal*size(I,2))]);
 
+    %preprocess the images (FFT filtering)
     clear yy;
     clear xx;
     I=medfilt2(I);
@@ -69,7 +70,7 @@ II=zeros(size(I,1),size(I,2),numimages); %preallocating an array to store the 3d
     Fm = ifftshift(Fm);
     F = Fm.*Fp;
     filtered = mat2gray(abs(ifft2(F)));
-    %nlfilt = NLMF(filtered);
+    %nlfilt = NLMF(filtered); - optional non-local means filtering. requires a non-local means filter package
     I=filtered;
 
     %  Options.kernelratio=1;
@@ -84,6 +85,8 @@ II=zeros(size(I,1),size(I,2),numimages); %preallocating an array to store the 3d
     I = ~bwareaopen(~I,50);
     I = bwareaopen(I,50);
     %imtool(I)
+    
+    %finished image preprocessing
 
     II(:,:,a) = I;
 
@@ -93,7 +96,7 @@ II=zeros(size(I,1),size(I,2),numimages); %preallocating an array to store the 3d
 
     end
 
-%perform distance transform on 3d image array
+%perform distance transform on 3d image stack
 fprintf('Calculating distance transform on stack %d (~7 s)\n',s);
 tic
 IIi = imcomplement(II);
