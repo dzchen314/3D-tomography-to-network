@@ -1,7 +1,6 @@
 #!/usr/bin/perl
 #Created by Nicolas Brodu
 #Modified by David Chen
-
 #Purpose: takes a large number of unsorted image files generated from many "$cycles" or repetitions of "$scans" containing several images, "$imperscan,"
 #from a directory/directories and makes symbolic links to them sorted in separated directories
 
@@ -18,9 +17,9 @@ $seqscans = $cycles * $scans;
 $imperscan = 360;
 $images = $imperscan * $seqscans;
 
-#for $d (glob("3_9_17_SSincstrain3/*")) {
-#    print "Processing directory $d\n";
-    for $f (glob("2_19_densitymatched_gel_10scans/*")) {
+for $d (glob("GLOBAL_FILEPATH/*")) {
+    print "Processing directory $d\n";
+    for $f (glob("IMAGE_FILEPATH/*")) {
         if ($f =~ /.*_(\d+).tiff/) {
             # use 0-based arithmetic, much simpler for modulo ops
             $idx = $1 - 1;#change this - number depending on the first picture in the data
@@ -31,14 +30,8 @@ $images = $imperscan * $seqscans;
             $idx += 1; $scan += 1; $slice += 1;
             $seq += 1; # specific to this experiment
             #print "$idx $seq $scan $slice => $f\n";
-            mkpath("2_19_densitymatched_gel_10scans_jpg/scan_$scan");
-            symlink("../../$f","2_19_densitymatched_gel_10scans_jpg/scan_$scan/slice_$slice.tiff");
+            mkpath("OUTPUT_FILEPATH/scan_$scan");
+            symlink("../../$f","OUTPUT_FILEPATH/scan_$scan/slice_$slice.tiff");
         }
     }
-#}
-
-# check that all files are there with
-#   ls -1 images |wc
-# which should give $scans(?) and
-#   for d in images/* ; do echo -n "$d => " ; ls -1 $d|wc ; done|grep -v 360
-# which should display nothing (or it gives the bad directory)
+}
